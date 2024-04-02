@@ -19,10 +19,13 @@ namespace Cauldron.Drift
         protected enum CustomMode
         {
             AskToSwap,
-            AskToSwapFromPlay
+            AskToSwapFromPlay,
+            AskToSwapFromPower
         }
 
         private Card customTextCardBeingPlayed { get; set; }
+        private string customTextPowerDescriptor { get; set; }
+        private Card customTextCardWithPower { get; set; }
 
         private CustomMode customMode { get; set; }
 
@@ -33,7 +36,7 @@ namespace Cauldron.Drift
         public override void AddTriggers()
         {
             base.AddTriggers();
-            // Once per turn when Drift would shift, play a card, or be dealt damage, you may do the following in order
+            // Once per turn when Drift would shift, play a card, use a power, or be dealt damage, you may do the following in order
             //1. Place your active character on your current shift track space.
             //2. Place the shift token on your inactive character's shift track space.
             //3. Switch which character is active.
@@ -41,8 +44,13 @@ namespace Cauldron.Drift
             //shift trigger happens in the actual shifting logic
             base.AddTrigger<DealDamageAction>((DealDamageAction action) => Game.HasGameStarted && !this.HasTrackAbilityBeenActivated() && action.Target == GetActiveCharacterCard(), this.TrackResponse, TriggerType.ModifyTokens, TriggerTiming.Before);
 
-            string[] noResponseIdentifiers = new string[] { "ShiftTrack", "FutureDrift", "PastDrift" };
-            base.AddTrigger<CardEntersPlayAction>((CardEntersPlayAction cpa) => cpa.CardEnteringPlay != null && !this.HasTrackAbilityBeenActivated() && cpa.CardEnteringPlay.Owner == TurnTakerControllerWithoutReplacements.TurnTaker && noResponseIdentifiers.All(id => !cpa.CardEnteringPlay.Identifier.Contains(id)), this.TrackResponse, TriggerType.ModifyTokens, TriggerTiming.Before);
+            string[] noResponseOnPlayIdentifiers = new string[] { "ShiftTrack", "FutureDrift", "PastDrift" };
+            base.AddTrigger<CardEntersPlayAction>((CardEntersPlayAction cpa) => cpa.CardEnteringPlay != null && !this.HasTrackAbilityBeenActivated() && cpa.CardEnteringPlay.Owner == TurnTakerControllerWithoutReplacements.TurnTaker && noResponseOnPlayIdentifiers.All(id => !cpa.CardEnteringPlay.Identifier.Contains(id)), this.TrackResponse, TriggerType.ModifyTokens, TriggerTiming.Before);
+
+            //since both character card powers shift Drift, the player would be prompted anyway so there's no reason to prompt early
+            string[] noResponseOnPowerIdentifiers = new string[] { "FutureDrift", "PastDrift" };
+
+            base.AddTrigger<UsePowerAction>((UsePowerAction upa) => upa.Power.CardSource.Card != null && !this.HasTrackAbilityBeenActivated() && upa.Power.CardSource.Card.Owner == TurnTakerControllerWithoutReplacements.TurnTaker && noResponseOnPowerIdentifiers.All(id => !upa.Power.CardSource.Card.Identifier.Contains(id)), this.TrackResponse, TriggerType.ModifyTokens, TriggerTiming.Before);
         }
 
         public bool HasTrackAbilityBeenActivated()
@@ -58,6 +66,23 @@ namespace Cauldron.Drift
             {
                 customMode = CustomMode.AskToSwapFromPlay;
                 customTextCardBeingPlayed = cpa.CardEnteringPlay;
+            }
+            else if (action is UsePowerAction upa)
+            {
+                customMode = CustomMode.AskToSwapFromPower;
+                if (upa.Power.Description.StartsWith(Past))
+                {
+                    customTextPowerDescriptor = $"{{{Past}}} ";
+                }
+                else if (upa.Power.Description.StartsWith(Future))
+                {
+                    customTextPowerDescriptor = $"{{{Future}}} ";
+                }
+                else
+                {
+                    customTextPowerDescriptor = "";
+                }
+                customTextCardWithPower = upa.Power.CardSource.Card;
             }
             else
             {
@@ -248,7 +273,12 @@ namespace Cauldron.Drift
 
             if(customMode == CustomMode.AskToSwapFromPlay)
             {
-                return new CustomDecisionText($"Do you want to switch character cards before playing [b]{customTextCardBeingPlayed.Title}[/b]?", $"Should they switch character cards before playing {customTextCardBeingPlayed.Title}?", $"Vote for if they should switch character cardsbefore playing {customTextCardBeingPlayed.Title}?", $"switching character cards before playing {customTextCardBeingPlayed.Title}");
+                return new CustomDecisionText($"Do you want to switch character cards before playing [b]{customTextCardBeingPlayed.Title}[/b]?", $"Should they switch character cards before playing [b]{customTextCardBeingPlayed.Title}[/b]?", $"Vote for if they should switch character cards before playing [b]{customTextCardBeingPlayed.Title}[/b]?", $"switching character cards before playing [b]{customTextCardBeingPlayed.Title}[/b]");
+            }
+
+            if(customMode == CustomMode.AskToSwapFromPower)
+            {
+                return new CustomDecisionText($"Do you want to switch character cards before using the {customTextPowerDescriptor}power on [b]{customTextCardWithPower.Title}[/b]?", $"Should they switch character cards before using the {customTextPowerDescriptor}power on [b]{customTextCardWithPower.Title}[/b]?", $"Vote for if they should switch character cardsbefore using the {customTextPowerDescriptor}power on [b]{customTextCardWithPower.Title}[/b]", $"switching character cards before using the {customTextPowerDescriptor}power on [b]{customTextCardWithPower.Title}[/b]");
             }
 
             return base.GetCustomDecisionText(decision);
