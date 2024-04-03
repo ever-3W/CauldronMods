@@ -171,6 +171,53 @@ namespace CauldronTests
         }
 
         [Test()]
+        public void TestDriftCharacter_SwitchActiveHeroOffOfPowerUse()
+        {
+            SetupGameController(new string[] { "BaronBlade", "Cauldron.Drift/DualDriftCharacter", "Haka", "Bunker", "TheScholar", "Megalopolis" }, randomSeed: new int?(-2054413546));
+            Card futureDrift = GetCard(FutureDriftCharacter);
+            Card shiftTrack = GetCard("DualShiftTrack1");
+            Card sabershard = PutInHand("Sabershard");
+
+            DecisionSelectCards = new Card[] { shiftTrack, futureDrift };
+            StartGame(resetDecisions: false);
+
+            //Start with Future in spot 1
+            AssertIsInPlay(FutureDriftCharacter);
+            AssertTrackPosition(1);
+            // Switch during the villain turn to Past in spot 
+
+            DecisionsYesNo = new bool[] { true, false, true, true };
+
+            DealDamage(baron, futureDrift, 3, DamageType.Melee);
+            AssertIsInPlay(PastDriftCharacter);
+            AssertTrackPosition(1);
+            GoToShiftPosition(4);
+
+            GoToNextTurn();
+
+            // Don't switch on card play
+            PlayCard(sabershard);
+
+            // Switch on power use; use first power (Draw a card. Shift {ShiftR})
+            // Since Future is still on 1 it triggers, Drift draws a card and shifts
+            QuickHandStorage(drift);
+            UsePower(sabershard, 0);
+            AssertIsInPlay(FutureDriftCharacter);
+            QuickHandCheck(1);
+            AssertTrackPosition(2);
+
+            GoToNextTurn();
+
+            // Switch on power use; use Past power
+            // Since Past is on 4, nothing happens
+            QuickHandStorage(drift);
+            UsePower(sabershard, 0);
+            AssertIsInPlay(PastDriftCharacter);
+            QuickHandCheck(0);
+            AssertTrackPosition(4);
+        }
+
+        [Test()]
         public void TestDriftCharacter_UIPrompts()
         {
             SetupGameController(new string[] { "BaronBlade", "Cauldron.Drift/DualDriftCharacter", "Haka", "Bunker", "TheScholar", "Megalopolis" }, randomSeed: new int?(-2054413546));
@@ -182,7 +229,7 @@ namespace CauldronTests
             //Start with Past
             AssertIsInPlay(PastDriftCharacter);
 
-            DecisionsYesNo = new bool[] {true, true};
+            DecisionsYesNo = new bool[] {true, true, false, false};
             DecisionSelectWords = new string[] {"Swap the active Drift, then Shift {ShiftR}", "Swap the active Drift, then Shift {ShiftR}" };
 
             Card sabershard = PlayCard("Sabershard");
