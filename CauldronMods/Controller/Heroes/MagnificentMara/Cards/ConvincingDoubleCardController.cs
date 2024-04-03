@@ -214,9 +214,16 @@ namespace Cauldron.MagnificentMara
 
             AddThisCardControllerToList(CardControllerListType.ReplacesCards);
             AddThisCardControllerToList(CardControllerListType.ReplacesTurnTakerController);
+            AddThisCardControllerToList(CardControllerListType.ReplacesCardSource);
             ITrigger associatedCardSourceTrigger = AddTrigger((GameAction ga) => ga.CardSource != null && ga.CardSource.Card == _passedCard, AddThisAsAssociatedCardSource, TriggerType.Hidden, TriggerTiming.Before);
 
             CardController passedController = FindCardController(_passedCard);
+            if (passedController is Handelabra.Sentinels.Engine.Controller.Guise.ICanDoThatTooCardController)
+            {
+                // override the default game controller to make the change
+                // since the internal class uses a HashSet this replaces the old controller
+                passedController.TurnTakerController.AddCardController(new YouCanDoThatTooCardController(passedController.CardWithoutReplacements, passedController.TurnTakerControllerWithoutReplacements));
+            }
             passedController.AddAssociatedCardSource(GetCardSource());
 
             //send a message to tell the player what is happening
@@ -244,6 +251,7 @@ namespace Cauldron.MagnificentMara
 
             RemoveThisCardControllerFromList(CardControllerListType.ReplacesCards);
             RemoveThisCardControllerFromList(CardControllerListType.ReplacesTurnTakerController);
+            RemoveThisCardControllerFromList(CardControllerListType.ReplacesCardSource);
             RemoveTrigger(associatedCardSourceTrigger);
             passedController.RemoveAssociatedCardSource(GetCardSource());
 
@@ -350,7 +358,6 @@ namespace Cauldron.MagnificentMara
             }
             return null;
         }
-
         private IEnumerator AddThisAsAssociatedCardSource(GameAction ga)
         {
             ga.CardSource.AddAssociatedCardSource(GetCardSource());
