@@ -240,6 +240,60 @@ namespace CauldronTests
             QuickHPCheck(2, 0, -2);
         }
         [Test]
+        public void TestConvincingDoubleWithBoredNow()
+        {
+            // first test base behavior - Convincing Double makes Legacy play Bored Now
+            // Legacy takes Giant Floaty Head and shuffles it into his deck, and Sound Beating 
+            SetupGameController(new string[] { "BaronBlade", "VoidGuardTheIdealist", "Cauldron.MagnificentMara", "Legacy", "Megalopolis" }, randomSeed: new int?(-1972996917));
+
+            StartGame();
+            DestroyNonCharacterVillainCards();
+
+            Card knives = PlayCard("FlyingStabbyKnives");
+            Card spark = PutInHand("SparkOfInspiration");
+            Card boredNow = PutInHand("BoredNow");
+
+            // needs extra one-shots in hand so we actually make decisions
+            PutInHand("BolsterAllies");
+            PutInHand("VividThoughts");
+
+            DecisionSelectTurnTakers = new TurnTaker[] { voidIdealist.TurnTaker, legacy.TurnTaker };
+            DecisionSelectCards = new Card[] { spark, boredNow, baron.CharacterCard };
+
+            UsePower(voidIdealist.CharacterCard);
+
+            PlayCard("ConvincingDouble");
+            AssertAtLocation(spark, legacy.HeroTurnTaker.Hand);
+            AssertAtLocation(knives, legacy.HeroTurnTaker.Deck);
+        }
+        [Test]
+        public void TestConvincingDoubleWithICanDoThatToo()
+        {
+            // now the actual test - Convincing Double plays I Can Do That, Too on Legacy 
+            // to let him use Idealist's character power
+            SetupGameController(new string[] { "BaronBlade", "VoidGuardTheIdealist", "Cauldron.MagnificentMara", "Legacy", "Guise", "Megalopolis" }, randomSeed: new int?(-1737274349));
+            StartGame();
+
+            Card doThatToo = PutInHand("ICanDoThatToo");
+
+            // Move fragments to Guise and Legacy's hands - the previous test shows how this is possible
+            Card spark = MoveCard(legacy, GetCard("SparkOfInspiration", 0), legacy.HeroTurnTaker.Hand);
+            Card hogs = MoveCard(guise, GetCard("HedgyHogs", 0), guise.HeroTurnTaker.Hand);
+
+            Card knives = PlayCard("FlyingStabbyKnives");
+            Card boredNow = PutInHand("BoredNow");
+
+            // needs extra one-shots in hand so we actually make decisions
+            PutInHand("BolsterAllies");
+            PutInHand("VividThoughts");
+
+            DecisionSelectTurnTakers = new TurnTaker[] { guise.TurnTaker, legacy.TurnTaker };
+            DecisionSelectCards = new Card[] { doThatToo, spark };
+
+            PlayCard("ConvincingDouble");
+            AssertUnderCard(knives, spark);
+        }
+        [Test]
         public void TestConvincingDoubleWithSentinels()
         {
             //just to make sure it doesn't break *too* badly.
