@@ -220,7 +220,7 @@ namespace Cauldron.MagnificentMara
             CardController passedController = FindCardController(_passedCard);
             if (passedController is Handelabra.Sentinels.Engine.Controller.Guise.ICanDoThatTooCardController)
             {
-                // override the default game controller to make the change
+                // overwrite the default game controller for the Guise card
                 // since the internal class uses a HashSet this replaces the old controller
                 passedController.TurnTakerController.AddCardController(new YouCanDoThatTooCardController(passedController.CardWithoutReplacements, passedController.TurnTakerControllerWithoutReplacements));
             }
