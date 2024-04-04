@@ -21,6 +21,7 @@ namespace Cauldron.MagnificentMara
         private HeroTurnTakerController _giverController = null;
         private HeroTurnTakerController _receiverController = null;
         private Card _receiverCharacterCard = null;
+        private Card _replacedPassedCard = null;
 
         private enum CustomMode
         {
@@ -127,6 +128,21 @@ namespace Cauldron.MagnificentMara
                 yield break;
             }
             Card passedCard = storedCardDecision.FirstOrDefault().SelectedCard;
+            if (FindCardController(passedCard) is Handelabra.Sentinels.Engine.Controller.Guise.ICanDoThatTooCardController)
+            {
+                _replacedPassedCard = passedCard;
+                passedCard = TurnTakerControllerWithoutReplacements.TurnTaker.GetAllCards().Where((Card c) => c.Definition.Identifier == "YouCanDoThatToo").FirstOrDefault();
+                
+                IEnumerator swapOutRoutine = GameController.MoveCard(DecisionMaker, _replacedPassedCard, TurnTaker.OffToTheSide, cardSource: GetCardSource());
+                if (UseUnityCoroutines)
+                {
+                    yield return this.GameController.StartCoroutine(swapOutRoutine);
+                }
+                else
+                {
+                    this.GameController.ExhaustCoroutine(swapOutRoutine);
+                }
+            }
 
             //"..to another player..."
             var validReceivers = GameController.AllTurnTakers.Where((TurnTaker tt) => IsHero(tt) &&
@@ -214,16 +230,9 @@ namespace Cauldron.MagnificentMara
 
             AddThisCardControllerToList(CardControllerListType.ReplacesCards);
             AddThisCardControllerToList(CardControllerListType.ReplacesTurnTakerController);
-            AddThisCardControllerToList(CardControllerListType.ReplacesCardSource);
             ITrigger associatedCardSourceTrigger = AddTrigger((GameAction ga) => ga.CardSource != null && ga.CardSource.Card == _passedCard, AddThisAsAssociatedCardSource, TriggerType.Hidden, TriggerTiming.Before);
 
             CardController passedController = FindCardController(_passedCard);
-            if (passedController is Handelabra.Sentinels.Engine.Controller.Guise.ICanDoThatTooCardController)
-            {
-                // overwrite the default game controller for the Guise card
-                // since the internal class uses a HashSet this replaces the old controller
-                passedController.TurnTakerController.AddCardController(new YouCanDoThatTooCardController(passedController.CardWithoutReplacements, passedController.TurnTakerControllerWithoutReplacements));
-            }
             passedController.AddAssociatedCardSource(GetCardSource());
 
             //send a message to tell the player what is happening
@@ -251,10 +260,31 @@ namespace Cauldron.MagnificentMara
 
             RemoveThisCardControllerFromList(CardControllerListType.ReplacesCards);
             RemoveThisCardControllerFromList(CardControllerListType.ReplacesTurnTakerController);
-            RemoveThisCardControllerFromList(CardControllerListType.ReplacesCardSource);
             RemoveTrigger(associatedCardSourceTrigger);
             passedController.RemoveAssociatedCardSource(GetCardSource());
 
+            if (_replacedPassedCard != null)
+            {
+                IEnumerator swapBackOutRoutine = GameController.MoveCard(DecisionMaker, _passedCard, TurnTaker.OffToTheSide, cardSource: GetCardSource());
+                if (base.UseUnityCoroutines)
+                {
+                    yield return this.GameController.StartCoroutine(swapBackOutRoutine);
+                }
+                else
+                {
+                    this.GameController.ExhaustCoroutine(swapBackOutRoutine);
+                }
+
+                IEnumerator swapInRoutine = GameController.MoveCard(DecisionMaker, _replacedPassedCard, giver.ToHero().Trash, cardSource: GetCardSource());
+                if (base.UseUnityCoroutines)
+                {
+                    yield return this.GameController.StartCoroutine(swapInRoutine);
+                }
+                else
+                {
+                    this.GameController.ExhaustCoroutine(swapInRoutine);
+                }
+            }
             _passedCard = null;
             _giverController = null;
             _receiverController = null;
@@ -358,6 +388,7 @@ namespace Cauldron.MagnificentMara
             }
             return null;
         }
+
         private IEnumerator AddThisAsAssociatedCardSource(GameAction ga)
         {
             ga.CardSource.AddAssociatedCardSource(GetCardSource());

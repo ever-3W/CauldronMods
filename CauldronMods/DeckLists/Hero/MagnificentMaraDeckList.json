@@ -5,6 +5,9 @@
     "initialCardIdentifiers": [
         "MagnificentMaraCharacter"
     ],
+    "initialOffToTheSideCardIdentifiers": [
+        "YouCanDoThatToo"
+    ],
     "cards": [
         {
             "identifier": "MagnificentMaraCharacter",
@@ -394,6 +397,32 @@
                 }
             ],
             "flavorReference": "Absolute Zero, Carnival of Heroes #14"
+        },
+        {
+            "identifier": "YouCanDoThatToo",
+            "count": 1,
+            "title": "You Can Do That, Too!",
+            "keywords": [
+                "one-shot"
+            ],
+            "icons": [
+                "UsePowerNow"
+            ],
+            "body": [
+                "Your hero may use a power printed on an active character card in play.",
+                "If that power has the name of a hero in it, treat that name as it were your hero's name instead."
+            ],
+            "flavorQuotes": [
+                {
+                    "identifier": "Guise",
+                    "text": "Anything you can do..."
+                },
+                {
+                    "identifier": "Mara",
+                    "text": "...I can do better!"
+                }
+            ],
+            "flavorReference": "Guise! The Musical One-Shot"
         }
     ],
     "unimplementableCards": [

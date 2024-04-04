@@ -367,6 +367,22 @@
 	"trimmed": false,
 	"spriteSourceSize": {"x":0,"y":0,"w":108,"h":108},
 	"sourceSize": {"w":108,"h":108}
+},
+"YouCanDoThatToo.png":
+{
+	"frame": {"x":259,"y":201,"w":256,"h":198},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":256,"h":198},
+	"sourceSize": {"w":256,"h":198}
+},
+"YouCanDoThatTooMicro.png":
+{
+	"frame": {"x":1172,"y":513,"w":108,"h":108},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":108,"h":108},
+	"sourceSize": {"w":108,"h":108}
 }},
 "meta": {
 	"app": "https://www.codeandweb.com/texturepacker",
