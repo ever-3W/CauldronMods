@@ -694,28 +694,55 @@ namespace Cauldron.Drift
 
         private IEnumerator DualDriftShifting(DualShiftTrackUtilityCardController dualShiftTrack, Func<IEnumerator> shiftAction, string shiftString)
         {
-            string option1 = "Shift " + shiftString;
-            string option2 = "Swap the active Drift, then Shift " + shiftString;
-            string option3 = "Shift " + shiftString + ", then swap the active Drift";
-            string[] options = new string[] { option1, option2, option3 };
+            if (dualShiftTrack.ReceiveSwapPromptsWhenShifting())
+            {
+                string option1 = "Shift " + shiftString;
+                string option2 = "Swap the active Drift, then Shift " + shiftString;
+                string option3 = "Shift " + shiftString + ", then swap the active Drift";
+                string[] options = new string[] { option1, option2, option3 };
 
-            List<SelectWordDecision> storedResults = new List<SelectWordDecision>();
-            SelectWordDecision decision = new SelectWordDecision(GameController, DecisionMaker, SelectionType.Custom, options, cardSource: GetCardSource(), associatedCards: GetShiftTrack().ToEnumerable());
-            decision.ExtraInfo = () => $"{dualShiftTrack.GetInactiveCharacterCard().Title} is at position {dualShiftTrack.InactiveCharacterPosition()}";
-            storedResults.Add(decision);
-            customMode = CustomMode.DualDriftShift;
-            IEnumerator coroutine = GameController.MakeDecisionAction(decision);
-            if (base.UseUnityCoroutines)
-            {
-                yield return base.GameController.StartCoroutine(coroutine);
-            }
-            else
-            {
-                base.GameController.ExhaustCoroutine(coroutine);
-            }
+                List<SelectWordDecision> storedResults = new List<SelectWordDecision>();
+                SelectWordDecision decision = new SelectWordDecision(GameController, DecisionMaker, SelectionType.Custom, options, cardSource: GetCardSource(), associatedCards: GetShiftTrack().ToEnumerable());
+                decision.ExtraInfo = () => $"{dualShiftTrack.GetInactiveCharacterCard().Title} is at position {dualShiftTrack.InactiveCharacterPosition()}";
+                storedResults.Add(decision);
+                customMode = CustomMode.DualDriftShift;
+                IEnumerator coroutine = GameController.MakeDecisionAction(decision);
+                if (base.UseUnityCoroutines)
+                {
+                    yield return base.GameController.StartCoroutine(coroutine);
+                }
+                else
+                {
+                    base.GameController.ExhaustCoroutine(coroutine);
+                }
 
-            if (!DidSelectWord(storedResults))
-            {
+                if (!DidSelectWord(storedResults))
+                {
+                    coroutine = shiftAction();
+                    if (base.UseUnityCoroutines)
+                    {
+                        yield return base.GameController.StartCoroutine(coroutine);
+                    }
+                    else
+                    {
+                        base.GameController.ExhaustCoroutine(coroutine);
+                    }
+                    yield break;
+                }
+                string selectedWord = GetSelectedWord(storedResults);
+                if (selectedWord == option2)
+                {
+                    coroutine = dualShiftTrack.SwapActiveDrift();
+                    if (base.UseUnityCoroutines)
+                    {
+                        yield return base.GameController.StartCoroutine(coroutine);
+                    }
+                    else
+                    {
+                        base.GameController.ExhaustCoroutine(coroutine);
+                    }
+                }
+
                 coroutine = shiftAction();
                 if (base.UseUnityCoroutines)
                 {
@@ -725,35 +752,23 @@ namespace Cauldron.Drift
                 {
                     base.GameController.ExhaustCoroutine(coroutine);
                 }
-                yield break;
-            }
-            string selectedWord = GetSelectedWord(storedResults);
-            if (selectedWord == option2)
-            {
-                coroutine = dualShiftTrack.SwapActiveDrift();
-                if (base.UseUnityCoroutines)
-                {
-                    yield return base.GameController.StartCoroutine(coroutine);
-                }
-                else
-                {
-                    base.GameController.ExhaustCoroutine(coroutine);
-                }
-            }
 
-            coroutine = shiftAction();
-            if (base.UseUnityCoroutines)
-            {
-                yield return base.GameController.StartCoroutine(coroutine);
+                if (selectedWord == option3)
+                {
+                    coroutine = dualShiftTrack.SwapActiveDrift();
+                    if (base.UseUnityCoroutines)
+                    {
+                        yield return base.GameController.StartCoroutine(coroutine);
+                    }
+                    else
+                    {
+                        base.GameController.ExhaustCoroutine(coroutine);
+                    }
+                }
             }
             else
             {
-                base.GameController.ExhaustCoroutine(coroutine);
-            }
-
-            if (selectedWord == option3)
-            {
-                coroutine = dualShiftTrack.SwapActiveDrift();
+                var coroutine = shiftAction();
                 if (base.UseUnityCoroutines)
                 {
                     yield return base.GameController.StartCoroutine(coroutine);

@@ -18,10 +18,49 @@ namespace Cauldron.Drift
 
         protected enum CustomMode
         {
-            AskToSwap,
+            ManageAskToSwapMain,
+            ManageAskToSwapFromShift,
+            ManageAskToSwapFromDamage,
+            ManageAskToSwapFromPlay,
+            ManageAskToSwapFromPower,
+
+            AskToSwapFromShift, // this is handled separately
+            AskToSwapFromDamage,
             AskToSwapFromPlay,
             AskToSwapFromPower
         }
+
+        protected enum SwapCondition
+        {
+            SwapFromShift,
+            SwapFromDamage,
+            SwapFromPlay,
+            SwapFromPower
+        }
+
+        private static readonly Dictionary<SwapCondition, string> EnableSwapConditionKeys = new Dictionary<SwapCondition, string>
+        {
+            { SwapCondition.SwapFromShift, "AskToSwapFromShift" },
+            { SwapCondition.SwapFromDamage, "AskToSwapFromDamage" },
+            { SwapCondition.SwapFromPlay, "AskToSwapFromPlay" },
+            { SwapCondition.SwapFromPower, "AskToSwapFromPower" }
+        };
+
+        private static readonly Dictionary<SwapCondition, CustomMode> SwapConditionManagePromptKeys = new Dictionary<SwapCondition, CustomMode>
+        {
+            { SwapCondition.SwapFromShift, CustomMode.ManageAskToSwapFromShift },
+            { SwapCondition.SwapFromDamage, CustomMode.ManageAskToSwapFromDamage },
+            { SwapCondition.SwapFromPlay, CustomMode.ManageAskToSwapFromPlay },
+            { SwapCondition.SwapFromPower, CustomMode.ManageAskToSwapFromPower }
+        };
+
+        private static readonly Dictionary<SwapCondition, CustomMode> SwapConditionDisplayPromptKeys = new Dictionary<SwapCondition, CustomMode>
+        {
+            { SwapCondition.SwapFromShift, CustomMode.AskToSwapFromShift },
+            { SwapCondition.SwapFromDamage, CustomMode.AskToSwapFromDamage },
+            { SwapCondition.SwapFromPlay, CustomMode.AskToSwapFromPlay },
+            { SwapCondition.SwapFromPower, CustomMode.AskToSwapFromPower }
+        };
 
         private Card customTextCardBeingPlayed { get; set; }
         private string customTextPowerDescriptor { get; set; }
@@ -51,6 +90,133 @@ namespace Cauldron.Drift
             string[] noResponseOnPowerIdentifiers = new string[] { "FutureDrift", "PastDrift" };
 
             base.AddTrigger<UsePowerAction>((UsePowerAction upa) => upa.Power.CardSource.Card != null && !this.HasTrackAbilityBeenActivated() && upa.Power.CardSource.Card.Owner == TurnTakerControllerWithoutReplacements.TurnTaker && noResponseOnPowerIdentifiers.All(id => !upa.Power.CardSource.Card.Identifier.Contains(id)), this.TrackResponse, TriggerType.ModifyTokens, TriggerTiming.Before);
+
+            base.AddStartOfTurnTrigger(tt => tt == base.TurnTaker, StartOfTurnResponse, TriggerType.Other);
+        }
+
+        public override IEnumerator Play()
+        {
+            IEnumerator coroutine = this.ManageAskToSwapSettings();
+            if (base.UseUnityCoroutines)
+            {
+                yield return base.GameController.StartCoroutine(coroutine);
+            }
+            else
+            {
+                base.GameController.ExhaustCoroutine(coroutine);
+            }
+        }
+
+        public IEnumerator StartOfTurnResponse (PhaseChangeAction pca)
+        {
+            IEnumerator coroutine = this.ManageAskToSwapSettings();
+            if (base.UseUnityCoroutines)
+            {
+                yield return base.GameController.StartCoroutine(coroutine);
+            }
+            else
+            {
+                base.GameController.ExhaustCoroutine(coroutine);
+            }
+        }
+        private void SetSwapPromptConditionEnabled(SwapCondition swapCondition, bool value)
+        {
+            Log.Debug($"CC = {GameController.FindCard("DriftCharacter").Identifier}, Card = {Card.Identifier}, swapCondition = {swapCondition}, Journal.GetCardPropertiesBoolean(Card, EnableSwapConditionKeys[swapCondition]) is {Journal.GetCardPropertiesBoolean(Card, EnableSwapConditionKeys[swapCondition])}");
+            GameController.AddCardPropertyJournalEntry(GameController.FindCard("DriftCharacter"), EnableSwapConditionKeys[swapCondition], boolValue: value);
+        }
+
+        private bool IsSwapPromptConditionEnabled(SwapCondition swapCondition)
+        {
+            Log.Debug($"CC = {GameController.FindCard("DriftCharacter").Identifier}, Card = {Card.Identifier}, swapCondition = {swapCondition}, Journal.GetCardPropertiesBoolean(Card, EnableSwapConditionKeys[swapCondition]) is {Journal.GetCardPropertiesBoolean(Card, EnableSwapConditionKeys[swapCondition])}");
+            return Journal.GetCardPropertiesBoolean(GameController.FindCard("DriftCharacter"), EnableSwapConditionKeys[swapCondition]) != false;
+        }
+
+        public bool ReceiveSwapPromptsWhenShifting()
+        {
+            return IsSwapPromptConditionEnabled(SwapCondition.SwapFromShift);
+        }
+
+        private IEnumerator ManageAskToSwapSetting(SwapCondition swapCondition)
+        {
+            customMode = SwapConditionManagePromptKeys[swapCondition];
+            List<YesNoCardDecision> manageDecision = new List<YesNoCardDecision>();
+            YesNoCardDecision decision = new YesNoCardDecision(GameController, HeroTurnTakerController, SelectionType.Custom, Card, action: null, associatedCards: null, cardSource: GetCardSource());
+            //decision.ExtraInfo = () => $"{GetInactiveCharacterCard().Title} is at position {InactiveCharacterPosition()}";
+            manageDecision.Add(decision);
+            IEnumerator coroutine = GameController.MakeDecisionAction(decision);
+            if (base.UseUnityCoroutines)
+            {
+                yield return base.GameController.StartCoroutine(coroutine);
+            }
+            else
+            {
+                base.GameController.ExhaustCoroutine(coroutine);
+            }
+            SetSwapPromptConditionEnabled(swapCondition, base.DidPlayerAnswerYes(manageDecision.FirstOrDefault()));
+        }
+
+        public IEnumerator ManageAskToSwapSettings()
+        {
+            customMode = CustomMode.ManageAskToSwapMain;
+            List<SelectWordDecision> storedResults = new List<SelectWordDecision>();
+            string optionKeep = "Keep my current settings";
+            string optionManange = "Manage settings";
+            string optionDisableAll = "Never ask to swap character cards";
+            string optionEnableAll = "Always ask to swap character cards";
+            List<string> options = new List<string> { optionKeep, optionManange, optionDisableAll, optionEnableAll };
+            SelectWordDecision decision = new SelectWordDecision(GameController, HeroTurnTakerController, SelectionType.Custom, options, cardSource: GetCardSource(), associatedCards: GetShiftTrack().ToEnumerable());
+            decision.ExtraInfo = () => "This takes effect until the start of Drift's next turn.";
+            storedResults.Add(decision);
+            IEnumerator coroutine = GameController.MakeDecisionAction(decision);
+            if (base.UseUnityCoroutines)
+            {
+                yield return base.GameController.StartCoroutine(coroutine);
+            }
+            else
+            {
+                base.GameController.ExhaustCoroutine(coroutine);
+            }
+
+            if (!DidSelectWord(storedResults))
+            {
+                // do nothing and return
+                yield break;
+            }
+            string selectedWord = GetSelectedWord(storedResults);
+            if (selectedWord == optionKeep)
+            {
+                // do nothing and return
+                yield break;
+            }
+            else if (selectedWord == optionManange)
+            {
+                foreach (SwapCondition swapCondition in Enum.GetValues(typeof(SwapCondition)))
+                {
+                    var settingCoroutine = this.ManageAskToSwapSetting(swapCondition);
+                    if (base.UseUnityCoroutines)
+                    {
+                        yield return base.GameController.StartCoroutine(settingCoroutine);
+                    }
+                    else
+                    {
+                        base.GameController.ExhaustCoroutine(settingCoroutine);
+                    }
+                }
+            }
+            else if (selectedWord == optionDisableAll)
+            {
+                foreach (SwapCondition swapCondition in Enum.GetValues(typeof(SwapCondition)))
+                {
+                    SetSwapPromptConditionEnabled(swapCondition, false);
+                }
+            }
+            else
+            {
+                foreach (SwapCondition swapCondition in Enum.GetValues(typeof(SwapCondition)))
+                {
+                    SetSwapPromptConditionEnabled(swapCondition, true);
+                }
+            }
         }
 
         public bool HasTrackAbilityBeenActivated()
@@ -61,15 +227,16 @@ namespace Cauldron.Drift
 
         private IEnumerator TrackResponse(GameAction action)
         {
+            SwapCondition swapCondition;
             List<YesNoCardDecision> switchDecision = new List<YesNoCardDecision>();
             if (action is CardEntersPlayAction cpa)
             {
-                customMode = CustomMode.AskToSwapFromPlay;
+                swapCondition = SwapCondition.SwapFromPlay;
                 customTextCardBeingPlayed = cpa.CardEnteringPlay;
             }
             else if (action is UsePowerAction upa)
             {
-                customMode = CustomMode.AskToSwapFromPower;
+                swapCondition = SwapCondition.SwapFromPower;
                 if (upa.Power.Description.StartsWith(Past))
                 {
                     customTextPowerDescriptor = $"{{{Past}}} ";
@@ -86,27 +253,16 @@ namespace Cauldron.Drift
             }
             else
             {
-                customMode = CustomMode.AskToSwap;
+                swapCondition = SwapCondition.SwapFromDamage;
             }
-            YesNoCardDecision decision = new YesNoCardDecision(GameController, HeroTurnTakerController, SelectionType.Custom, Card, action: action is DealDamageAction ? action : null, associatedCards: GetInactiveCharacterCard().ToEnumerable(), cardSource: GetCardSource());
-            decision.ExtraInfo = () => $"{GetInactiveCharacterCard().Title} is at position {InactiveCharacterPosition()}";
-            switchDecision.Add(decision);
-            IEnumerator coroutine = GameController.MakeDecisionAction(decision);
-            if (base.UseUnityCoroutines)
+
+            if (IsSwapPromptConditionEnabled(swapCondition))
             {
-                yield return base.GameController.StartCoroutine(coroutine);
-            }
-            else
-            {
-                base.GameController.ExhaustCoroutine(coroutine);
-            }
-            if (base.DidPlayerAnswerYes(switchDecision.FirstOrDefault()))
-            {
-                if(action.IsPretend)
-                { 
-                    yield break;
-                }
-                coroutine = SwapActiveDrift();
+                customMode = SwapConditionDisplayPromptKeys[swapCondition];
+                YesNoCardDecision decision = new YesNoCardDecision(GameController, HeroTurnTakerController, SelectionType.Custom, Card, action: action is DealDamageAction ? action : null, associatedCards: GetInactiveCharacterCard().ToEnumerable(), cardSource: GetCardSource());
+                decision.ExtraInfo = () => $"{GetInactiveCharacterCard().Title} is at position {InactiveCharacterPosition()}";
+                switchDecision.Add(decision);
+                IEnumerator coroutine = GameController.MakeDecisionAction(decision);
                 if (base.UseUnityCoroutines)
                 {
                     yield return base.GameController.StartCoroutine(coroutine);
@@ -115,10 +271,13 @@ namespace Cauldron.Drift
                 {
                     base.GameController.ExhaustCoroutine(coroutine);
                 }
-
-                if (action is DealDamageAction dealDamageAction)
+                if (base.DidPlayerAnswerYes(switchDecision.FirstOrDefault()))
                 {
-                    coroutine = RedirectDamage(dealDamageAction, TargetType.SelectTarget, c => c == GetActiveCharacterCard());
+                    if(action.IsPretend)
+                    { 
+                        yield break;
+                    }
+                    coroutine = SwapActiveDrift();
                     if (base.UseUnityCoroutines)
                     {
                         yield return base.GameController.StartCoroutine(coroutine);
@@ -126,6 +285,19 @@ namespace Cauldron.Drift
                     else
                     {
                         base.GameController.ExhaustCoroutine(coroutine);
+                    }
+
+                    if (action is DealDamageAction dealDamageAction)
+                    {
+                        coroutine = RedirectDamage(dealDamageAction, TargetType.SelectTarget, c => c == GetActiveCharacterCard());
+                        if (base.UseUnityCoroutines)
+                        {
+                            yield return base.GameController.StartCoroutine(coroutine);
+                        }
+                        else
+                        {
+                            base.GameController.ExhaustCoroutine(coroutine);
+                        }
                     }
                 }
             }
@@ -266,7 +438,62 @@ namespace Cauldron.Drift
         public override CustomDecisionText GetCustomDecisionText(IDecision decision)
         {
 
-            if (customMode == CustomMode.AskToSwap)
+            if (customMode == CustomMode.ManageAskToSwapMain)
+            {
+                return new CustomDecisionText
+                (
+                    "When would you like to receive swap prompts?",
+                    "When should they receive swap prompts?",
+                    "Vote for when they should receive swap prompts", 
+                    "receive swap prompts"
+                );
+            }
+
+            if (customMode == CustomMode.ManageAskToSwapFromShift)
+            {
+                return new CustomDecisionText
+                (
+                    "Would you like swap prompts when moving on the Shift Track?", 
+                    "Should they receive swap prompts when moving on the Shift Track?", 
+                    "Vote for if they should receive swap prompts when moving on the Shift Track", 
+                    "receive swap prompts when moving on the Shift Track"
+                );
+            }
+
+            if (customMode == CustomMode.ManageAskToSwapFromDamage)
+            {
+                return new CustomDecisionText
+                (
+                    "Would you like swap prompts when you would be dealt damage?", 
+                    "Should they receive swap prompts when they would be dealt damage?", 
+                    "Vote for if they should receive swap prompts when they would be dealt damage", 
+                    "receive swap prompts when they would be dealt damage"
+                );
+            }
+
+            if (customMode == CustomMode.ManageAskToSwapFromPlay)
+            {
+                return new CustomDecisionText
+                (
+                    "Would you like swap prompts when you play a card?", 
+                    "Should they receive swap prompts when they play a card?", 
+                    "Vote for if they should receive swap prompts when they play a card", 
+                    "receive swap prompts when playing a card"
+                );
+            }
+
+            if (customMode == CustomMode.ManageAskToSwapFromPower)
+            {
+                return new CustomDecisionText
+                (
+                    "Would you like swap prompts when you use a power?", 
+                    "Should they receive swap prompts when they use a power?", 
+                    "Vote for if they should receive swap prompts when they use a power", 
+                    "receive swap prompts when using"
+                );
+            }
+
+            if (customMode == CustomMode.AskToSwapFromDamage)
             {
                 return new CustomDecisionText("Do you want to switch character cards?", "Should they switch character cards?", "Vote for if they should switch character cards?", "switching character cards");
             }
